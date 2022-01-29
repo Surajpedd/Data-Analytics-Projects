@@ -1,0 +1,385 @@
+---
+title: "Data Analytics Project"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Group Members:
+## Suraj P - 19BCE1044
+## Girish S - 19BCE1268
+
+### Importing Libraries
+
+```{r intro}
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(moments)
+library(corrplot)
+library(viridis)
+library(caret)
+```
+
+### Extracting Data and displaying a summary
+```{r read}
+temp_df <-read.csv("Temperature.csv")
+colnames(temp_df)
+summary(temp_df[1:10])
+sprintf("Number of RowsxColumns: %dx%d",nrow(temp_df),ncol(temp_df))
+```
+
+### Data Preprocessing
+&nbsp;
+For the purposes of this investigation we:
+&nbsp;<ul>
+<li>We remove the Empty Cells for countries that did not exist before that year</li>
+<li>Delete columns which contain the various codes as they wont be nessessary.</li>
+<li>Rename the Area column to country</li>
+<li>Convert the three month grouped data into Seasons</li> 
+</ul>&nbsp;
+```{r clean}
+#Removing Empty Rows 
+clean_temp = na.omit(temp_df)
+sprintf("Number of Rows Removed : %d",nrow(temp_df)-nrow(clean_temp))
+# Delete columns which contain the codes
+# We remove unit as all data is in Celsius
+temp = clean_temp[ ,!names(clean_temp) %in% c("Area.Code","Months.Code","Element.Code","Unit")]
+sprintf("New Dimensions : %dx%d",nrow(temp),ncol(temp))
+#Renaming Column Area to Country for ease of understanding
+names(temp)[names(temp) == 'Area'] <- 'Country'
+# Converting grp of 3 months to Seasons
+seasons = c('Winter', 'Spring', 'Summer', 'Fall') 
+seasons_replace = c('Dec\x96Jan\x96Feb','Mar\x96Apr\x96May', 'Jun\x96Jul\x96Aug','Sep\x96Oct\x96Nov')
+for(x in 1:4)
+  temp["Months"][temp["Months"] == seasons_replace[x]] <- seasons[x]
+backup = temp
+```
+
+### Display About Dataset
+```{r view}
+colnames(temp)
+sprintf("Number of RowsxColumns: %dx%d",nrow(temp),ncol(temp))
+```
+
+### India as a case Study
+#### Line Chart
+```{r fig.align="center",fig.width = 13}
+
+india = temp %>% filter(Country == "India")
+#Average Temperature Change
+temp_india = india %>%filter(Months!="Spring",Months!="Summer",Months!="Winter",Months!="Fall",Months!="Meteorological year",Element=="Temperature change")
+temp_india1 = temp_india %>% select(Months,Y1961,Y1971,Y1981,Y1991,Y2001,Y2011,Y2019)
+temp_india1 = melt(temp_india1,id= 'Months',variable.name = 'series')
+ggplot(temp_india1,aes(x= Months,y =value,colour = series,group = series)) + geom_line()
+```
+
+#### Bar Plot
+
+```{r season}
+#Season wise temperature Change India 
+temp_india2 = india %>% filter(Months=="Fall" | Months=="Spring" | Months=="Summer" | Months=="Winter",Element=="Temperature change") %>% select(Months,Y1969,Y1979,Y1989,Y1999,Y2009,Y2019)
+temp_india2 = melt(temp_india2,id= 'Months',variable.name = 'series')
+ggplot(temp_india2,aes(x = Months,y = value,fill = series)) + geom_bar(stat="identity",position="dodge") + scale_y_continuous(breaks=seq(-0.5, 2,1),limits=c(-0.5, 2)) + xlab("Seasons")
+```
+&nbsp;
+
+### World Temperature Change
+
+```{r world }
+#density plot
+world = temp %>% filter(Element == "Temperature change",Months == "Meteorological year")
+max_2019 = max(world$Y2019)
+min_2019 = min(world$Y2019)
+
+breaks = seq(floor(min_2019),ceiling(max_2019),0.5)
+t2019_cut = cut(world$Y2019,breaks,right = F)
+
+t2019_freq = table(t2019_cut)
+cbind(t2019_freq)
+barplot(t2019_freq,ylim=range(pretty(c(0, t2019_freq))),col = "yellow")
+
+ggplot(world,aes(x = Y2019),binwidth = 10) + geom_density(fill = "lightblue")
+#check if normal distribution
+ggplot(world, aes(sample = Y2019)) + stat_qq() + stat_qq_line(col = "red") + xlab("Theoretical Quantiles") + ylab("Sample Quantiles")
+
+# Finding Skewness and Kurtosis
+skewness(world$Y2019)
+kurtosis(world$Y2019)
+
+```
+&nbsp;
+
+
+#### Finding the Top 5 Countries with Highest Temperature Change in 5 years
+
+```{r fig.width=11}
+# Pie chart to show top 5 countries with high temp change in past five years
+
+temp = temp %>% filter(Country != "Asia",Country != "Europe",Country != "Africa", Country != "Northern America",Country != "South America",Country != "Australia", Country != "Antarctica")
+ans1 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(desc(abs(Y2015))) %>%
+                  dplyr::select(Country,Y2015) %>%
+                     head(5)
+
+ggplot(ans1,aes(x="",y=Y2015,fill=Country))+geom_bar(width=1,stat="identity")+coord_polar("y",start=0)+labs(title="top 5 countries with high temp change in 2015")
+
+colnames(ans1)[2] = "Temp_Change"
+ans1 <- ans1 %>% mutate(Year = "2015")
+
+ans2 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(desc(abs(Y2016))) %>%
+                  dplyr::select(Country,Y2016) %>%
+                     head(5)
+ggplot(ans2,aes(x="",y=Y2016,fill=Country))+geom_bar(width=1,stat="identity")+coord_polar("y",start=0)+labs(title="top 5 countries with high temp change in 2016")
+colnames(ans2)[2] = "Temp_Change"
+ans2 <- ans2 %>% mutate(Year = "2016")
+
+ans3 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(desc(abs(Y2017))) %>%
+                  dplyr::select(Country,Y2017) %>%
+                     head(5)
+ggplot(ans3,aes(x="",y=Y2017,fill=Country))+geom_bar(width=1,stat="identity")+coord_polar("y",start=0)+labs(title="top 5 countries with high temp change in 2017")
+colnames(ans3)[2] = "Temp_Change"
+ans3 <- ans3 %>% mutate(Year = "2017")
+
+ans4 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(desc(abs(Y2018))) %>%
+                  dplyr::select(Country,Y2018) %>%
+                     head(5)
+ggplot(ans4,aes(x="",y=Y2018,fill=Country))+geom_bar(width=1,stat="identity")+coord_polar("y",start=0)+labs(title="top 5 countries with high temp change in 2018")
+colnames(ans4)[2] = "Temp_Change"
+ans4 <- ans4 %>% mutate(Year = "2018")
+
+ans5 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(desc(abs(Y2019))) %>%
+                  dplyr::select(Country,Y2019) %>%
+                     head(5)
+ggplot(ans5,aes(x="",y=Y2019,fill=Country))+geom_bar(width=1,stat="identity")+coord_polar("y",start=0)+labs(title="top 5 countries with high temp change in 2019")
+colnames(ans5)[2] = "Temp_Change"
+ans5 <- ans5 %>% mutate(Year = "2019")
+
+total <- rbind(ans1, ans2, ans3, ans4, ans5)
+total
+total <- total %>%
+             arrange(desc(abs(Temp_Change))) %>%
+                dplyr::select(Country,Year,Temp_Change) %>%
+                   head(5)
+
+
+total$Country <- paste(total$Country, total$Year)
+par(xpd = TRUE)
+pie(total$Temp_Change,col = rainbow(5),labels = paste(total$Temp_Change), main = "top 5 countries with High temp change in 2015-2019")
+legend(1,1, total$Country,fill = rainbow(5),title = "Country")
+
+```
+&nbsp;
+
+### Top 5 Countries with least Temp Change in last 5 Years
+
+```{r fig.width=11}
+# Pie chart to show 5 countries with low temp change in past five years
+ans1 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(abs(Y2015)) %>%
+                  dplyr::select(Country,Y2015) %>%
+                     head(5)
+colnames(ans1)[2] = "Temp_Change"
+ans1 <- ans1 %>% mutate(Year = "2015")
+
+ans2 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(abs(Y2016)) %>%
+                  dplyr::select(Country,Y2016) %>%
+                     head(5)
+colnames(ans2)[2] = "Temp_Change"
+ans2 <- ans2 %>% mutate(Year = "2016")
+
+ans3 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(abs(Y2017)) %>%
+                  dplyr::select(Country,Y2017) %>%
+                     head(5)
+colnames(ans3)[2] = "Temp_Change"
+ans3 <- ans3 %>% mutate(Year = "2017")
+
+ans4 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(abs(Y2018)) %>%
+                  dplyr::select(Country,Y2018) %>%
+                     head(5)
+colnames(ans4)[2] = "Temp_Change"
+ans4 <- ans4 %>% mutate(Year = "2018")
+
+ans5 <- temp %>%
+          filter(Months == "Meteorological year", Element == "Temperature change") %>%
+              arrange(abs(Y2019)) %>%
+                  dplyr::select(Country,Y2019) %>%
+                     head(5)
+colnames(ans5)[2] = "Temp_Change"
+ans5 <- ans5 %>% mutate(Year = "2019")
+
+total <- rbind(ans1, ans2, ans3, ans4, ans5)
+
+total <- total %>%
+             arrange(abs(Temp_Change)) %>%
+                dplyr::select(Country,Year,Temp_Change) %>%
+                   head(5)
+total$Country <- paste(total$Country, total$Year)
+
+par(xpd = TRUE)
+pie(total$Temp_Change,col = rainbow(5),labels = paste(total$Temp_Change), main = "top 5 countries with Lowest Temp change in 2015-2019")
+legend(1.2,1, total$Country,fill = rainbow(5),title = "Country")
+
+```
+
+### Comparison of India vs World
+```{r fig.width = 12}
+
+india = india %>% filter(Element == "Temperature change") %>% select(Y1961,Y1971,Y1981,Y1991,Y2001,Y2011,Y2017,Y2018,Y2019,Country,Months,Element)
+
+df_india = melt(india, id = c("Country","Months","Element"))
+ggplot(df_india, aes(variable,value, col=variable)) + geom_point() + stat_smooth() + geom_jitter() + stat_summary(aes(y = value,group=1), fun.y=mean, colour="red", geom="line",group=1) + labs(title = "India over the Years") + xlab("Year") + ylab("Temperature Change")
+
+world = temp %>% filter(Element == "Temperature change", Country != "India", Months == "Meteorological year") %>% select(Y1961,Y1971,Y1981,Y1991,Y2001,Y2011,Y2017,Y2018,Y2019,Country,Months,Element)
+df_world = melt(world, id = c("Country","Months","Element"))
+ggplot(df_world, aes(variable,value, col=variable)) + geom_point() + stat_smooth() + geom_jitter() + stat_summary(aes(y = value,group=1), fun.y=mean, colour="red", geom="line",group=1) + labs(title = "World over the Years") + xlab("Year") + ylab("Temperature Change")
+
+```
+
+### Continent wise Temperature Change
+
+#### Box Plot
+```{r fig.width=11}
+continent = backup %>% filter(Country == "Asia" | Country == "Europe" | Country == "Africa" | Country == "Northern America" | Country == "South America" | Country == "Australia"| Country == "Antarctica",Element == "Temperature change")
+ggplot(continent,aes(x = Country,y = Y2019, fill = Country)) + geom_boxplot() +
+labs(fill = "Continents") + xlab("Continents")
+
+continent %>% group_by(Country) %>% summarize(Med = median(Y2019), IQR = IQR(Y2019))
+```   
+
+#### Heat Map
+```{r fig.width = 12}
+continent = c("Asia","Europe","Africa","Northern America","South America","Australia","Antarctica")
+heat <- backup %>% filter(Country %in% continent,Months != "Meteorological year",Months!="Spring",Months!="Fall",Months!="Summer",Months!="Spring",Months!="Winter") %>% group_by(Months,Country,Y2019) %>% summarize(Avg_temp = mean(Y2019)) 
+ggplot(heat, aes(x=Months,y=Country,fill=Y2019)) + geom_tile()+ scale_fill_viridis(option = "C") + theme(legend.position = "bottom",axis.title = element_blank(),axis.text = element_text(size = 10), plot.title = element_text(size=12,face = "bold")) + ggtitle("Temperatures in select Continents", subtitle = "Continents, Months")
+```
+&nbsp;
+
+### Correlation Matrix
+```{r correlation}
+world = temp %>% filter(Element == "Temperature change",Months == "Meteorological year")
+temp1 = world %>% select(Y1969,Y1979,Y1989,Y1999,Y2009,Y2019)
+temp2 = world %>% select(Y2010,Y2011,Y2012,Y2013,Y2014,Y2015,Y2016,Y2017,Y2018,Y2019)
+
+corrplot(cor(temp1),type = "upper",method = "number")
+corrplot(cor(temp2),type = "upper",method = "number")
+```
+&nbsp;
+
+### Multiple Linear Regression for predicting year 2019
+
+```{r}
+df = backup %>% filter(Element == "Temperature change", Months == "Meteorological year") %>% select(-one_of(c("Element","Months","Country")))
+
+set.seed(123)
+train_samples <- df$Y2019 %>% createDataPartition(p=0.8,list=FALSE)
+
+train <- df[train_samples,]
+test <- df[-train_samples,]
+
+#Building a regression model using train as data
+
+model <- lm(Y2019~.,data=train)
+summary(model)
+pred <- model %>% predict(test)
+
+RMSE <- RMSE(pred,test$Y2019)
+RMSE
+
+R2 <- R2(pred, test$Y2019)
+R2
+```
+&nbsp;
+
+###  Checking Residual Normality
+
+```{r normality}
+hist(model$residuals) #Evaluating the normality assumption
+qqnorm(model$residuals,ylab = "Residuals")
+qqline(model$residuals)
+```
+&nbsp;
+
+### Predicting Temperature Change in the Future
+
+```{r future}
+world = backup %>% filter(Element == "Temperature change", Months == "Meteorological year")
+
+df_world = melt(world, id = c("Country","Months","Element"))
+df = df_world %>% select(variable,value)
+
+set.seed(123)
+train_samples <- df$value %>% createDataPartition(p=0.8,list=FALSE)
+train <- df[train_samples,]
+test <- df[-train_samples,]
+
+#Building a regression model using train as data
+
+model <- lm(value~.,data=train)
+summary(model)
+pred <- model %>% predict(test)
+
+RMSE <- RMSE(pred,test$value)
+RMSE
+
+R2 <- R2(pred, test$value)
+R2
+```
+
+### Polynomial Regression
+```{r poly}
+df$variable = as.numeric(substr(df$variable,2,5))
+set.seed(123)
+train <- df
+
+random_gen = sort(sample(1980:2060,size = 81))
+
+test1 = data.frame(variable = random_gen)
+row.names(test1) = NULL
+
+model <- lm(value~.,data=train)
+pred <- model %>% predict(test1)
+
+test2 = data.frame(variable = random_gen)
+row.names(test2) = NULL
+
+model2 <- lm(value~poly(variable,2),data=train)
+test2$value <- model2 %>% predict(test2)
+
+range(test2$value)
+
+```
+### Models Plot
+```{r fig.width = 12}
+world = backup %>% filter(Element == "Temperature change", Months == "Meteorological year")
+df_world = melt(world, id = c("Country","Months","Element"))
+temp = df_world %>% group_by(variable) %>% summarize(Avg = mean(value))
+X = c(1961:1979,test2$variable)
+Y1 = c(rep(NA,19),test2$value)
+Y2 = c(rep(NA,19),pred)
+Y3 = c(temp$Avg,rep(NA,41))
+plot(X,Y1,type = "l",col = "blue",ylim = c(min(Y3,na.rm = T),max(Y1,na.rm = T)), yaxs="i",main="Average Temperature Change Models", xlim = c(1961,2060))
+lines(X,Y2,col="green")
+lines(X,Y3,col="red",)
+legend("topleft", legend=c("Avg", "Linear","Poly - 2"),col=c("red","green","blue"),lty=1)
+```
