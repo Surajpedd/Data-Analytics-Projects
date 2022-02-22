@@ -1,6 +1,6 @@
 ## Climate Change Analysis
 
-A fun Data Analytics Project that analyzes the climate change across the years, from the 1961 to 2019. It contains monthwise, seasonwise and yearly data of the Temperature Change across all different Countries, Continents and various sub-regions. Various trends have been found by applying Exploratory Data Analysis and predictions have also been made based on given data. Multiple Linear and Polynomial Regression have been implemented to predict the temperature change in the future. 
+A fun Data Analytics Project that analyzes the climate change across the years, from the 1961 to 2019. It contains monthwise, seasonwise and yearly data of the Temperature Change across all different Countries, Continents and various sub-regions. After performing Data pre-preprocessing, various trends have been found by applying Exploratory Data Analysis and predictions have also been made based on given data. Multiple Linear and Polynomial Regression have been implemented to predict the temperature change in the future. 
 
 ### Dataset
 
